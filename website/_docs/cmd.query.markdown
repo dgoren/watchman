@@ -104,12 +104,20 @@ microseconds, nanoseconds or floating point seconds respectively.
  * `dev` - integer: the device number
  * `nlink` - integer: number of hard links
  * `new` - bool: whether this entry is newer than the `since` generator criteria
- * `type` - string: the file type. (Available since version 3.1).  Has the
+
+*Since 3.1.*
+
+ * `type` - string: the file type. Has the
    the values listed in [the type query expression](../expr/type.html)
+
+*Since 4.6.*
+
+ * `symlink_target` - string: the target of a symbolic link if the file is a
+   symbolic link
 
 ### Synchronization timeout (since 2.1)
 
-By default a `query` will wait for up to 2 seconds for the view of the
+By default a `query` will wait for up to 60 seconds for the view of the
 filesystem to become current.  Watchman decides that the view is current by
 creating a cookie file and waiting to observe the notification that it is
 present.  If the cookie is not observed within the sync_timeout period then the
@@ -123,10 +131,62 @@ expressed in milliseconds:
 ["query", "/path/to/root", {
   "expression": ["exists"],
   "fields": ["name"],
-  "sync_timeout": 2000
+  "sync_timeout": 60000
 }]
 ```
 
 You may specify `0` as the value if you do not wish for the query to create
 a cookie and synchronize; the query will be evaluated over the present view
 of the tree, which may lag behind the present state of the filesystem.
+
+### Lock timeout
+
+*Since 4.6.*
+
+By default queries will wait for up to 60 seconds to acquire a lock to inspect
+the view of the filesystem tree.  In practice, this timeout should never be hit
+(it is indicative of an environmental or load related issue).  However, in some
+situations it is important to ensure that the query attempt times out sooner
+than this.  You may use the `lock_timeout` field to control this behavior.
+`lock_timeout` must be an integer value expressed in milliseconds:
+
+```json
+["query", "/path/to/root", {
+  "expression": ["exists"],
+  "fields": ["name"],
+  "lock_timeout": 60000,
+  "sync_timeout": 60000
+}]
+```
+
+Prior to version 4.6, the `lock_timeout` could not be configured and had an
+effective value of infinity.
+
+### Case sensitivity
+
+*Since 2.9.9.*
+
+On systems where the watched root is a case insensitive filesystem (this is the
+common case for OS X and Windows), various name matching operations default to
+case insensitive.
+
+*Since 4.7.*
+
+You may override the case sensitivity of the various name matching operations
+by setting the `case_sensitive` field in your query spec.  It default to the
+case sensitivity of the watched root.  This is useful in cases where you know
+that the contents of the tree are treated case sensitively by your various
+tools but are running on a case insensitive filesystem.  By forcing the name
+matches to case sensitive mode the matches are faster and in some cases can be
+accelerated by using alternative algorithms.
+
+```bash
+$ watchman -j <<-EOT
+["query", "/path/to/root", {
+  "suffix": "php",
+  "expression": ["match", "foo*.c", "basename"],
+  "case_sensitive": true,
+  "fields": ["name"]
+}]
+EOT
+```

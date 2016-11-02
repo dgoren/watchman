@@ -10,16 +10,13 @@
 
 #include <stddef.h>
 #include "jansson.h"
-#include "hashtable.h"
 #include "strbuffer.h"
+#include <algorithm>
+#include <unordered_map>
+#include <vector>
 
 #define container_of(ptr_, type_, member_)  \
     ((type_ *)((char *)ptr_ - offsetof(type_, member_)))
-
-/* On some platforms, max() may already be defined */
-#ifndef max
-#define max(a, b)  ((a) > (b) ? (a) : (b))
-#endif
 
 /* va_copy is a C99 feature. In C89 implementations, it's sometimes
    available as __va_copy. If not, memcpy() should do the trick. */
@@ -31,42 +28,53 @@
 #endif
 #endif
 
-typedef struct {
+struct json_object_t {
     json_t json;
-    hashtable_t hashtable;
-    size_t serial;
+    std::unordered_map<w_string, json_ref> map;
     int visited;
-} json_object_t;
 
-typedef struct {
+    json_object_t(size_t sizeHint = 0);
+
+    typename std::unordered_map<w_string, json_ref>::iterator findCString(
+        const char* key);
+};
+
+struct json_array_t {
     json_t json;
-    size_t size;
-    size_t entries;
-    json_t **table;
+    std::vector<json_ref> table;
     int visited;
-    json_t *templ;
-} json_array_t;
+    json_ref templ;
 
-typedef struct {
+    json_array_t(size_t sizeHint = 0);
+    json_array_t(std::initializer_list<json_ref> values);
+};
+
+struct json_string_t {
     json_t json;
-    char *value;
-} json_string_t;
+    w_string value;
 
-typedef struct {
+    json_string_t(w_string_t* str);
+};
+
+struct json_real_t {
     json_t json;
     double value;
-} json_real_t;
 
-typedef struct {
-    json_t json;
-    json_int_t value;
-} json_integer_t;
+    json_real_t(double value);
+};
 
-#define json_to_object(json_)  container_of(json_, json_object_t, json)
-#define json_to_array(json_)   container_of(json_, json_array_t, json)
-#define json_to_string(json_)  container_of(json_, json_string_t, json)
-#define json_to_real(json_)   container_of(json_, json_real_t, json)
-#define json_to_integer(json_) container_of(json_, json_integer_t, json)
+struct json_integer_t {
+  json_t json;
+  json_int_t value;
+
+  json_integer_t(json_int_t value);
+};
+
+#define json_to_object(json_)  container_of((json_t*)json_, json_object_t, json)
+#define json_to_array(json_)   container_of((json_t*)json_, json_array_t, json)
+#define json_to_string(json_)  container_of((json_t*)json_, json_string_t, json)
+#define json_to_real(json_)   container_of((json_t*)json_, json_real_t, json)
+#define json_to_integer(json_) container_of((json_t*)json_, json_integer_t, json)
 
 void jsonp_error_init(json_error_t *error, const char *source);
 void jsonp_error_set_source(json_error_t *error, const char *source);

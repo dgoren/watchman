@@ -1,14 +1,28 @@
 # vim:ts=4:sw=4:et:
 # Copyright 2012-present Facebook, Inc.
 # Licensed under the Apache License, Version 2.0
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+# no unicode literals
+
 import WatchmanTestCase
 import os
 import os.path
 import sys
 import re
 
+WATCHMAN_SRC_DIR = os.environ.get('WATCHMAN_SRC_DIR', os.getcwd())
+THIS_DIR = os.path.join(WATCHMAN_SRC_DIR, 'tests', 'integration')
 
-class TestTrigger(WatchmanTestCase.WatchmanTestCase):
+
+@WatchmanTestCase.expand_matrix
+class TestTriggerIssue141(WatchmanTestCase.WatchmanTestCase):
+
+    def requiresPersistentSession(self):
+        # cli transport has no log subscriptions
+        return True
 
     def matchTriggerInLog(self, logs, root, triggerName):
         r = re.compile(' trigger %s:%s pid=' %
@@ -33,27 +47,24 @@ class TestTrigger(WatchmanTestCase.WatchmanTestCase):
 
     # https://github.com/facebook/watchman/issues/141
     def test_triggerIssue141(self):
-        if self.transport == 'cli':
-            self.skipTest('cli transport has no log subscriptions')
-
         root = self.mkdtemp()
         self.touchRelative(root, 'foo.js')
 
         self.watchmanCommand('watch', root)
         self.assertFileList(root, ['foo.js'])
 
-        touch = os.path.join(os.path.dirname(__file__), 'touch.py')
+        touch = os.path.join(THIS_DIR, 'touch.py')
         logs = self.mkdtemp()
         first_log = os.path.join(logs, 'first')
         second_log = os.path.join(logs, 'second')
 
         res = self.watchmanCommand('trigger', root, 'first', '*.js', '--',
                                    sys.executable, touch, first_log)
-        self.assertEqual(res['triggerid'], 'first')
+        self.assertEqual(self.decodeBSERUTF8(res['triggerid']), 'first')
 
         res = self.watchmanCommand('trigger', root, 'second', '*.js', '--',
                                    sys.executable, touch, second_log)
-        self.assertEqual(res['triggerid'], 'second')
+        self.assertEqual(self.decodeBSERUTF8(res['triggerid']), 'second')
 
         self.assertWaitFor(lambda: os.path.exists(first_log) and
                            os.path.exists(second_log),

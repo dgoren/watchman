@@ -1,17 +1,35 @@
 # vim:ts=4:sw=4:et:
 # Copyright 2015-present Facebook, Inc.
 # Licensed under the Apache License, Version 2.0
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+# no unicode literals
+
 import WatchmanTestCase
 import tempfile
 import os
 import os.path
-import unittest
+try:
+    import unittest2 as unittest
+except ImportError:
+    import unittest
+
 import pywatchman
 
 
+def is_root():
+    return hasattr(os, 'geteuid') and os.geteuid() == 0
+
+@WatchmanTestCase.expand_matrix
 class TestPerms(WatchmanTestCase.WatchmanTestCase):
 
-    @unittest.skipIf(os.name == 'nt' or os.geteuid() == 0, "win or root")
+    def checkOSApplicability(self):
+        if os.name == 'nt':
+            self.skipTest('N/A on Windows')
+
+    @unittest.skipIf(is_root(), "N/A if root")
     def test_permDeniedSubDir(self):
         root = self.mkdtemp()
         subdir = os.path.join(root, 'subdir')
@@ -21,10 +39,11 @@ class TestPerms(WatchmanTestCase.WatchmanTestCase):
         res = self.watchmanCommand('query', root, {
             'expression': ['exists'],
             'fields': ['name']})
-        self.assertRegexpMatches(res['warning'],
+        warning = self.decodeBSERUTF8(res['warning'])
+        self.assertRegexpMatches(warning,
                                  'Marking this portion of the tree deleted')
 
-    @unittest.skipIf(os.name == 'nt' or os.geteuid() == 0, "win or root")
+    @unittest.skipIf(is_root(), "N/A if root")
     def test_permDeniedRoot(self):
         root = self.mkdtemp()
         os.chmod(root, 0)

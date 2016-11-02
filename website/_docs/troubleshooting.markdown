@@ -102,7 +102,7 @@ The default log location may be overridden by the `--logfile` [Server Option](
 /watchman/docs/cli-options.html#quick-note-on-default-locations) explains what
 we mean by `<STATEDIR>`, `<TMPDIR>`, `<USER>` and so on.
 
-## Poison: inotify_add_watch
+## <a id="poison-inotify-add-watch"></a>Poison: inotify_add_watch
 
 ```
 A non-recoverable condition has triggered.  Watchman needs your help!
@@ -140,10 +140,51 @@ some resources, or you may just need to install more RAM in the system.
 ### I've changed my limits, how can I clear the error?
 
 The error will stick until you restart the watchman process.  The simplest
-resolution is to run `watchman shutdown-server`.
+resolution is:
+
+*Since 4.6*
+
+```
+$ watchman watch-del-all
+$ watchman shutdown-server
+```
+
+*Before 4.6*
+
+```
+$ rm <STATEDIR>/state       # see above for what STATEDIR means
+$ watchman --no-spawn --no-local shutdown-server
+```
 
 If you have not actually resolved the root cause you may continue to trigger
 and experience this state each time the system trips over these limits.
+
+## Poison: opendir
+
+```
+A non-recoverable condition has triggered.  Watchman needs your help!
+The triggering condition was at timestamp=1407695600: opendir(/my/path) -> Too many open files in system
+All requests will continue to fail with this message until you resolve
+the underlying problem.  You will find more information on fixing this at
+https://facebook.github.io/watchman/docs/troubleshooting.html#opendir
+```
+
+If you've encountered this state it means that your entire system had too many
+open files, and that this prevented watchman from tracking the changes on your
+system.  In this case, the error isn't related to filesystem watching but to
+other (likely) misbehaving processes on your system; it's usually indicative of
+a runaway program or set of programs consuming resources, but in some cases it
+may just be that your system workload requires that you increase your system
+limits for the number of files.
+
+### How do I resolve this?
+
+[Follow these directions](
+/watchman/docs/troubleshooting.html#i-39-ve-changed-my-limits-how-can-i-clear-the-error)
+
+If the issue persists, consult your system administrator to identify what
+is consuming these resources and remediate it, or to increase your system
+limits.
 
 ## FSEvents
 

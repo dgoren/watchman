@@ -20,13 +20,38 @@ A query may specify any number of generators; each generator will emit its list
 of files and this may mean that you see the same file output more than once if
 you specified the use of multiple generators that all produce the same file.
 
-Watchman provides 4 generators:
+Watchman provides 5 generators:
 
  * **since**: produces a list of files that were modified since a specific
    clockspec.
  * **suffix**: produces a list of files that have a particular suffix.
+ * **glob**: efficiently pattern match a list of files based on their names.
  * **path**: produces a list of files based on their path and depth.
  * **all**: produces a list of all known files
+
+
+### De-duplicating results
+
+*Since 4.7.*
+
+If your query uses multiple generators, or configures the `path` generator with
+paths that yield multiple results, the default behavior (for backwards
+compatibility reasons) is to emit those duplicate results in the query output.
+
+You may ask Watchman to de-duplicate results for you by enabling the
+`dedup_results` boolean in your query:
+
+```
+$ watchman -j <<-EOT
+["query", "/path/to/root", {
+  "path": ["bar", "bar"],
+  "dedup_results": true
+}]
+EOT
+```
+
+You may test for this feature using an extended version command and requesting
+the capability name `dedup_results`.
 
 ### Since Generator
 
@@ -79,6 +104,44 @@ $ watchman -j <<-EOT
 }]
 EOT
 ```
+
+### Glob Generator
+
+*Since 4.7.*
+
+The `glob` generator produces a list of files by matching against your
+input list of patterns.  It does this by building a tree from the glob
+expression(s) and walking both the expression and the in-memory filesystem
+tree concurrently.
+
+This query will yield a list of all of the C source and header files found
+directly in the `src` dir:
+
+```
+$ watchman -j <<-EOT
+["query", "/path/to/root", {
+  "glob": ["src/*.c", "src/*.h"],
+  "fields": ["name"]
+}]
+```
+
+This query will yield a list of all of the C source and header files found
+in any subdirectories of the root:
+
+```
+$ watchman -j <<-EOT
+["query", "/path/to/root", {
+  "glob": ["**/*.c", "**/*.h"],
+  "fields": ["name"]
+}]
+```
+
+Note that it is more efficient to use the `suffix` generator together with a
+`dirname` expression term for such a broadly scoped query as it results in
+fewer comparisons.  This example is included as an illustration of recursive
+globbing.
+
+The glob generator implicitly enables `dedup_results` mode.
 
 ### Path Generator
 

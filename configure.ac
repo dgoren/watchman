@@ -1,4 +1,4 @@
-AC_INIT([watchman], [4.1.0], [], [watchman])
+AC_INIT([watchman], [4.7.0], [], [watchman])
 AC_CANONICAL_TARGET
 AM_INIT_AUTOMAKE([dist-bzip2 subdir-objects])
 m4_ifdef([AM_SILENT_RULES], [AM_SILENT_RULES(yes)])
@@ -10,6 +10,7 @@ case $target_os in
     dnl if we don't build 64-bit, our test suite fails when comparing the
     dnl results of a 64-bit dev_t from PHP's stat info
     CFLAGS="$CFLAGS -m64"
+    CXXFLAGS="$CXXFLAGS -m64"
     ;;
   *darwin*)
     dnl avoid compilation failure on OS X when building with python
@@ -17,8 +18,9 @@ case $target_os in
     AC_SUBST(ARCHFLAGS)
     ;;
 esac
-
 AC_PROG_CC
+AC_PROG_CXX
+AX_CXX_COMPILE_STDCXX_11([noext],[mandatory])
 AC_PROG_CPP
 AC_C_BIGENDIAN
 AC_C_INLINE
@@ -26,12 +28,6 @@ AC_PROG_RANLIB
 
 AM_PROG_CC_C_O
 AM_PROG_AS
-
-dnl Look for "arc" so that we can conditionally enable more pedantry
-dnl when building.  We prefer that contributors use "arc" but don't
-dnl require users to have it to build and use watchman
-AC_CHECK_PROG(HAVE_ARC, arc, yes, no)
-AM_CONDITIONAL(HAVE_ARC, test "x$HAVE_ARC" = xyes)
 
 dnl I don't care that this is supposed to be sysconfdir; autoconf doesn't
 dnl allow it to be evaluated sanely from configure, only via Makefile,
@@ -55,6 +51,25 @@ AC_ARG_WITH(buildinfo, [
  AC_DEFINE_UNQUOTED(WATCHMAN_BUILD_INFO, "$withval", [build info])
 ])
 
+build_dev_fsevents=no
+AC_ARG_WITH(fsevents-header, [
+  --with-fsevents-header=/path/to/xnu/bsd/sys/fsevents.h
+                          Specify the path to the fsevents.h header file
+                          on your system.  This is an optional dependency
+                          for the experimental devfsevents watcher.
+],[
+  fsevents_header="$withval"
+  AC_MSG_CHECKING([that $fsevents_header is a file])
+  if test -f "$fsevents_header" ; then
+    AC_DEFINE_UNQUOTED(SYS_FSEVENTS_PATH, ["$fsevents_header"],[sys/fsevents.h location])
+    AC_MSG_RESULT(yes)
+    build_dev_fsevents=yes
+  else
+    AC_MSG_FAILURE([--with-fsevents-header was given but the value $fsevents_header was not a file])
+  fi
+])
+AM_CONDITIONAL(DEV_FSEVENTS, [test "$build_dev_fsevents" != "no"])
+
 xprefix=$prefix
 if test "$xprefix" = "NONE"; then
   xprefix=$ac_default_prefix
@@ -76,16 +91,28 @@ if test "$WATCHMAN_STATE_DIR" != "no"; then
 fi
 AM_CONDITIONAL(WATCHMAN_STATE_DIR, [test "$WATCHMAN_STATE_DIR" != "no"])
 
+AC_ARG_ENABLE(asan, [
+  --enable-asan           Enable address sanitizer options
+])
+AC_ARG_ENABLE(opt, [
+  --disable-opt           Disable optimizations (-O0)
+])
+
 want_python=yes
 AC_ARG_WITH(python, [
+  --with-python=PATH      Enable Python bindings. PATH is location of python.
+                          Default is to look for python in your PATH
   --without-python        Disable python bindings
 ],[
    want_python="$withval"
 ])
-if test "x$want_python" = "xyes" ; then
+if test "x$want_python" != "xno" ; then
+  if test "$want_python" != "yes"; then
+    PYTHON="$want_python"
+  fi
   AM_PATH_PYTHON(,,[:])
 fi
-AM_CONDITIONAL(HAVE_PYTHON, [test "$PYTHON" != : -a "x$want_python" = "xyes"])
+AM_CONDITIONAL(HAVE_PYTHON, [test "$PYTHON" != : -a "x$want_python" != "xno"])
 
 want_ruby=no
 AC_ARG_WITH(ruby, [
@@ -217,6 +244,7 @@ AC_SEARCH_LIBS([pthread_create], [pthread])
 AC_SEARCH_LIBS([socket], [socket])
 
 AC_CHECK_HEADERS(sys/types.h inttypes.h locale.h port.h sys/inotify.h sys/event.h)
+AC_CHECK_HEADERS(sys/ucred.h sys/socket.h)
 AC_CHECK_FUNCS(mkostemp kqueue port_create inotify_init strtoll localeconv statfs)
 AC_CHECK_FUNCS(accept4 inotify_init1 getattrlistbulk openat fdopendir)
 AC_CHECK_HEADERS(sys/vfs.h sys/param.h sys/mount.h sys/statfs.h sys/statvfs.h, [], [],
@@ -229,7 +257,10 @@ AC_CHECK_HEADERS(execinfo.h sys/resource.h)
 AC_CHECK_HEADERS(CoreServices/CoreServices.h, [
   LIBS="$LIBS -framework CoreServices"
 ])
+AC_CHECK_FUNCS(FSEventStreamSetExclusionPaths)
 AC_CHECK_FUNCS(backtrace backtrace_symbols backtrace_symbols_fd)
+AC_CHECK_FUNCS(sys_siglist)
+AC_CHECK_FUNCS(memmem)
 
 if test -n "$ac_cv_header_sys_statvfs_h"; then
 AC_CHECK_MEMBERS([struct statvfs.f_fstypename,struct statvfs.f_basetype],
@@ -240,9 +271,21 @@ fi
 # Do this after we've looked for functions
 if test -n "$GCC" ; then
   CFLAGS="$CFLAGS -Wall -Wextra -Wdeclaration-after-statement -g -gdwarf-2 -fno-omit-frame-pointer"
+  CXXFLAGS="$CXXFLAGS -Wall -Wextra -g -gdwarf-2 -fno-omit-frame-pointer"
+fi
+if test -n "$GCC" -a "x$enable_opt" = "xno" ; then
+  CFLAGS="$CFLAGS -O0"
+  CXXFLAGS="$CXXFLAGS -O0"
+  LDFLAGS="$LDFLAGS -O0"
+fi
+if test -n "$GCC" -a "x$enable_asan" = "xyes" ; then
+  CFLAGS="$CFLAGS -fsanitize=address"
+  CXXFLAGS="$CXXFLAGS -fsanitize=address"
+  LDFLAGS="$LDFLAGS -fsanitize=address"
 fi
 if test -n "$GCC" -a "$stack_protect" = "yes" ; then
   CFLAGS="$CFLAGS -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4"
+  CXXFLAGS="$CXXFLAGS -Wp,-D_FORTIFY_SOURCE=2 -fexceptions -fstack-protector --param=ssp-buffer-size=4"
 fi
 IRONMANCFLAGS=""
 if test -n "$GCC" -a "$lenient" = "no" ; then
@@ -264,8 +307,11 @@ cat << EOF
 
 Your build configuration:
 
+        CC = $CC
         CPPFLAGS = $CPPFLAGS
         CFLAGS = $CFLAGS
+        CXX = $CXX
+        CXXFLAGS = $CXXFLAGS
         LDFLAGS = $LDFLAGS
         prefix: $prefix
         version: $VERSION

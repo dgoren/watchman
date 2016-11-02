@@ -1,11 +1,13 @@
 version: b{build}
 
+os: Visual Studio 2015
+
 branches:
   except:
     - gh-pages
 
 install:
-  - cinst php
+  - cinst -y php
 
 build_script:
   - make
@@ -22,3 +24,11 @@ artifacts:
   - path: Watchman
     name: watchman
     type: zip
+
+environment:
+  matrix:
+    - WATCHMAN_WIN7_COMPAT: 1
+    - WATCHMAN_WIN7_COMPAT:
+
+platform:
+  - x64

@@ -10,6 +10,103 @@ We focus on the highlights only in these release notes.  For a full history
 that includes all of the gory details, please see [the commit history on
 GitHub](https://github.com/facebook/watchman/commits/master).
 
+### Watchman 4.7.0 (2016-09-10)
+
+* Reduced memory usage by 40%
+* Queries can now run with a shared lock.  It is recommended that clients
+  move away from the `n:FOO` style server side named cursor clockspecs to
+  take full advantage of this.
+* Added new `glob` generator as a walking strategy for queries.  This
+  allows watchman to evaluate globs in the most efficient manner.  Our
+  friends in the Buck project have already integrated this into their
+  `BUCK` file parsing to evaluate globs without touching the filesystem!
+* Added `"case_sensitive": true` option to queries to force matches to
+  happen in a case sensitive manner, even if the watched root is on
+  a case insensitive filesystem.  This is used to accelerate certain
+  types of internal traversal: if we know that a path is case sensitive
+  we can perform an `O(1)` lookup where we would otherwise have to perform
+  an `O(number-of-directory-entries)` scan and compare.
+* Fixed a race condition during subscription initiation that could emit
+  incorrect clock values.
+* Fixed spurious over-notification for parent directories of changed files
+  on Mac.
+* Fixed some reliability issues on Windows
+
+### Watchman 4.6.0 (2016-07-09)
+
+* Improved I/O scheduling when processing recursive deletes and deep directory
+  rename operations.
+* Improved performance of the `ignore_dirs` configuration option on macOS and
+  Windows systems.  We take advantage of an undocumented (but supported!)
+  API to further accelerate this for the first 8 entries in the `ignore_dirs`
+  on macOS.  Users that depend on this configuration to avoid recrawls will
+  want to review and prioritize their most active build dirs to the front
+  of the `ignore_dirs` specified in their `.watchmanconfig` file.
+* Added an optional recrawl recovery strategy for macOS that will attempt to
+  resync from the fseventsd journal rather than performing a full filesystem
+  walk.  This is currently disabled by default but will likely be enabled
+  by default in the next Watchman release.  You can enable this by setting
+  `fsevents_try_resync: true` in either `/etc/watchman.json` or your
+  `.watchmanconfig`.  This should reduce the frequency of recrawl warnings
+  for some users/workloads, and also improves I/O for users with extremely
+  large trees.
+* Fixed accidental exponential time complexity issue with recursive deletes
+  and deep directory rename operations on case-insensitive filesystems (such as
+  macOS).  This manifested as high CPU utilization for extended periods of time.
+* Added support for allowing non-owner access to a Watchman instance.  Only
+  the owner is authorized to create or delete watches.  Non-owners can view
+  information about existing watches.  Access control is based on unix domain
+  socket permissions.  The new but not yet documented configuration options
+  `sock_group` and `sock_access` can be used to control this new behavior.
+* Added support for inetd-style socket activation of the watchman service.
+  [this commit includes a sample configuration for systemd](https://github.com/facebook/watchman/commit/2985377eaf8c8538b28fae9add061b67991a87c2).
+* Added the `symlink_target` field to the stored metadata for files.  This
+  holds the text of the symbolic link for symlinks.  You can test whether it
+  is supported by a watchman server using the capability name
+  `field-symlink_target`.
+* Fixed an issue where watchman may not reap child processes spawned by
+  triggers.
+* Fixed an issue where watchman may block forever during shutdown if there
+  are other connected clients.
+* Added `hint_num_dirs` configuration option.
+
+
+### pywatchman 1.4.0 (????-??-??)
+
+(These changes have not yet been released to pypi)
+
+* Added immutable version of data results to bser.  This is cheaper to build
+  from a serialized bser representation than the mutable version and is
+  better suited to large result sets received from watchman.
+* Fixed a number of misc. portability issues
+* Added Python 3.x support
+
+### Watchman 4.5.0 (2016-02-18)
+
+* Fixed an inotify race condition for non-atomic directory replacements
+  that was introduced in Watchman 4.4.
+
+### Watchman 4.4.0 (2016-02-02)
+
+* Added state-enter and state-leave commands can allow subscribers to more
+  intelligently settle/coalesce events around hg update or builds.
+* Fixed an issue where subscriptions could double-notify for the same events.
+* Fixed an issue where subscriptions that never match any files add
+  O(all-observed-files) CPU cost to every subscription dispatch
+
+### Watchman 4.3.0 (2015-12-14)
+
+* Improved handling of case insensitive renames; halved the memory usage
+  and doubled crawl speed on OS X.
+
+### Watchman 4.2.0 (2015-12-08)
+
+* Increased strictness of checks for symlinks; rather than just checking
+  whether the leaf of a directory tree is a symlink, we now check each
+  component down from the root of the watch.  This improves detection
+  and processing for directory-to-symlink (and vice versa) transitions.
+* Increased priority of the watchman process on OS X.
+
 ### pywatchman 1.3.0 (2015-10-22)
 
 * Added `watchman-make` and `watchman-wait` commands

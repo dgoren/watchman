@@ -1,8 +1,25 @@
 #!/usr/bin/env python
 # vim:ts=4:sw=4:et:
-import unittest
+
+from __future__ import absolute_import
+from __future__ import division
+from __future__ import print_function
+# no unicode literals
 import os
 import os.path
+
+# in the FB internal test infra, ensure that we are running from the
+# dir that houses this script rather than some other higher level dir
+# in the containing tree.  We can't use __file__ to determine this
+# because our PAR machinery can generate a name like /proc/self/fd/3/foo
+# which won't resolve to anything useful by the time we get here.
+if not os.path.exists('runtests.py') and os.path.exists('watchman/runtests.py'):
+    os.chdir('watchman')
+
+try:
+    import unittest2 as unittest
+except ImportError:
+    import unittest
 import sys
 # Ensure that we can find pywatchman
 sys.path.insert(0, os.path.join(os.getcwd(), 'python'))
@@ -14,10 +31,9 @@ import traceback
 import time
 import argparse
 import atexit
-import WatchmanTapTests
 import WatchmanInstance
 import WatchmanTestCase
-import NodeTests
+import TempDir
 import glob
 import threading
 import multiprocessing
@@ -57,9 +73,26 @@ parser.add_argument(
 
 parser.add_argument(
     '--concurrency',
-    default=int(math.ceil(1.5 * multiprocessing.cpu_count())),
+    default=int(min(8, math.ceil(1.5 * multiprocessing.cpu_count()))),
     type=int,
     help='How many tests to run at once')
+
+parser.add_argument(
+    '--watcher',
+    action='store',
+    default='auto',
+    help='Specify which watcher should be used to run the tests')
+
+parser.add_argument(
+    '--debug-watchman',
+    action='store_true',
+    help='Pauses start up and prints out the PID for watchman server process.' +
+    'Use with concurrency set to 1')
+
+parser.add_argument(
+    '--watchman-path',
+    action='store',
+    help='Specify the path to the watchman binary')
 
 args = parser.parse_args()
 
@@ -67,39 +100,22 @@ args = parser.parse_args()
 os.environ['WATCHMAN_EMPTY_ENV_VAR'] = ''
 
 # Ensure that we find the watchman we built in the tests
-os.environ['PATH'] = '%s%s%s' % (
-        os.path.abspath(os.path.dirname(__file__)),
-        os.pathsep,
-        os.environ['PATH'])
+if args.watchman_path:
+    bin_dir = os.path.dirname(args.watchman_path)
+else:
+    bin_dir = os.path.dirname(__file__)
+
+os.environ['PATH'] = '%s%s%s' % (os.path.abspath(bin_dir),
+                                 os.pathsep,
+                                 os.environ['PATH'])
 
 # We'll put all our temporary stuff under one dir so that we
 # can clean it all up at the end
-temp_dir = os.path.realpath(tempfile.mkdtemp(prefix='watchmantest'))
-# Redirect all temporary files to that location
-tempfile.tempdir = temp_dir
-
+temp_dir = TempDir.get_temp_dir(args.keep)
 
 def interrupt_handler(signo, frame):
     Interrupt.setInterrupted()
 signal.signal(signal.SIGINT, interrupt_handler)
-
-def retry_rmtree(top):
-    # Keep trying to remove it; on Windows it may take a few moments
-    # for any outstanding locks/handles to be released
-    for i in xrange(1, 10):
-        shutil.rmtree(top, ignore_errors=True)
-        if not os.path.isdir(top):
-            return
-        time.sleep(0.2)
-    sys.stdout.write('Failed to completely remove ' + top)
-
-def cleanup():
-    if args.keep:
-        sys.stdout.write('Preserving output in %s\n' % temp_dir)
-        return
-    retry_rmtree(temp_dir)
-
-atexit.register(cleanup)
 
 
 class Result(unittest.TestResult):
@@ -118,31 +134,22 @@ class Result(unittest.TestResult):
         self.startTime = time.time()
         super(Result, self).startTest(test)
 
-    def setFlavour(self, transport, encoding):
-        self.transport = transport
-        self.encoding = encoding
-
-    def flavour(self, test):
-        if self.transport:
-            return '%s [%s, %s]' % (test.id(), self.transport, self.encoding)
-        return test.id()
-
     def addSuccess(self, test):
         elapsed = time.time() - self.startTime
         super(Result, self).addSuccess(test)
-        print('\033[32mPASS\033[0m %s (%.3fs)' % (self.flavour(test), elapsed))
+        print('\033[32mPASS\033[0m %s (%.3fs)' % (test.id(), elapsed))
 
     def addSkip(self, test, reason):
         elapsed = time.time() - self.startTime
         super(Result, self).addSkip(test, reason)
         print('\033[33mSKIP\033[0m %s (%.3fs) %s' %
-              (self.flavour(test), elapsed, reason))
+              (test.id(), elapsed, reason))
 
     def __printFail(self, test, err):
         elapsed = time.time() - self.startTime
         t, val, trace = err
         print('\033[31mFAIL\033[0m %s (%.3fs)\n%s' % (
-            self.flavour(test),
+            test.id(),
             elapsed,
             ''.join(traceback.format_exception(t, val, trace))))
 
@@ -214,10 +221,10 @@ class Loader(unittest.TestLoader):
         names = super(Loader, self).getTestCaseNames(testCaseClass)
         return filter(lambda name: shouldIncludeTestName(name), names)
 
-    def loadTestsFromModule(self, module):
+    def loadTestsFromModule(self, module, *args, **kw):
         if not shouldIncludeTestFile(module.__file__):
             return unittest.TestSuite()
-        return super(Loader, self).loadTestsFromModule(module)
+        return super(Loader, self).loadTestsFromModule(module, *args, **kw)
 
 loader = Loader()
 suite = unittest.TestSuite()
@@ -228,16 +235,6 @@ if os.name == 'nt':
     t_globs = 'tests/*.exe'
 else:
     t_globs = 'tests/*.t'
-
-suite.addTests(WatchmanTapTests.discover(
-    shouldIncludeTestFile, t_globs))
-suite.addTests(WatchmanTapTests.discover(
-    shouldIncludeTestFile, 'tests/integration/*.php'))
-
-suite.addTests(NodeTests.discover(
-    shouldIncludeTestFile, 'node/test/*.js'))
-suite.addTests(NodeTests.discover(
-    shouldIncludeTestFile, 'tests/integration/*.js'))
 
 # Manage printing from concurrent threads
 # http://stackoverflow.com/a/3030755/149111
@@ -275,6 +272,11 @@ class ThreadSafeFile(object):
         if data == '\n':
             self._droplock()
 
+    def flush(self):
+        self._getlock()
+        self.f.flush()
+        self._droplock()
+
 sys.stdout = ThreadSafeFile(sys.stdout)
 
 tests_queue = queue.Queue()
@@ -284,23 +286,27 @@ def runner():
     global results_queue
     global tests_queue
 
+    broken = False
     try:
         # Start up a shared watchman instance for the tests.
-        inst = WatchmanInstance.Instance()
+        inst = WatchmanInstance.Instance({
+            "watcher": args.watcher
+        }, debug_watchman=args.debug_watchman)
         inst.start()
         # Allow tests to locate this default instance
         WatchmanInstance.setSharedInstance(inst)
     except Exception as e:
-        print('This is going to suck:', e)
-        return
+        print('while starting watchman: %s' % str(e))
+        traceback.print_exc()
+        broken = True
 
-    while True:
+    while not broken:
         test = tests_queue.get()
         try:
             if test == 'terminate':
                 break
 
-            if Interrupt.wasInterrupted():
+            if Interrupt.wasInterrupted() or broken:
                 continue
 
             try:
@@ -313,7 +319,8 @@ def runner():
         finally:
             tests_queue.task_done()
 
-    inst.stop()
+    if not broken:
+        inst.stop()
 
 def expand_suite(suite, target=None):
     """ recursively expand a TestSuite into a list of TestCase """
@@ -322,9 +329,6 @@ def expand_suite(suite, target=None):
     for i, test in enumerate(suite):
         if isinstance(test, unittest.TestSuite):
             expand_suite(test, target)
-        elif isinstance(test, WatchmanTestCase.WatchmanTestCase):
-            for cfg in test.expandConfigurations():
-                target.append(cfg)
         else:
             target.append(test)
 
@@ -366,7 +370,12 @@ while not results_queue.empty():
 print('Ran %d, failed %d, skipped %d, concurrency %d' % (
     tests_run, tests_failed, tests_skipped, args.concurrency))
 
-if tests_failed:
+if 'APPVEYOR' in os.environ:
+    shutil.copytree(temp_dir.get_dir(), 'logs')
+    subprocess.call(['7z', 'a', 'logs.zip', 'logs'])
+    subprocess.call(['appveyor', 'PushArtifact', 'logs.zip'])
+
+if tests_failed or (tests_run == 0):
     if args.keep_if_fail:
-        args.keep = True
+        temp_dir.set_keep(True)
     sys.exit(1)

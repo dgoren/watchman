@@ -1,9 +1,8 @@
 /* Copyright 2012-present Facebook, Inc.
  * Licensed under the Apache License, Version 2.0 */
 // Shim for building on Win32
-
-#define _CRT_SECURE_NO_WARNINGS 1
 #pragma once
+#define _CRT_SECURE_NO_WARNINGS 1
 
 #ifndef WATCHMAN_SUPER_PEDANTIC
 // Each of these is something that we should address :-/
@@ -21,40 +20,26 @@
 
 #endif
 
+#define _ALLOW_KEYWORD_MACROS
+#ifndef __cplusplus
 #define inline __inline
+#endif
+
+// Tell windows.h not to #define min/max
+#define NOMINMAX
+
 #define WIN32_LEAN_AND_MEAN
 #define EX_USAGE 1
-#include <windows.h>
 #include <errno.h>
-#include <stdio.h>
+#include <io.h>
+#include <process.h>
 #include <stdarg.h>
 #include <stdint.h>
-#include <process.h>
-#include <io.h>
+#include <stdio.h>
+#include <stdlib.h>
 #include <sys/types.h>
-
-// Use our own abort implementation
-#define abort() w_abort()
-extern void w_abort(void);
-
-typedef ptrdiff_t ssize_t;
-
-#define WATCHMAN_DIR_SEP '\\'
-#define WATCHMAN_DIR_DOT '.'
-
-static inline long __sync_fetch_and_add(volatile long *target, long add) {
-  return _InterlockedExchangeAdd(target, add);
-}
-
-static inline long __sync_add_and_fetch(volatile long *target, long add) {
-  return _InterlockedAdd(target, add);
-}
-
-const char *win32_strerror(DWORD err);
-char *w_win_unc_to_utf8(WCHAR *wpath, int pathlen);
-WCHAR *w_utf8_to_win_unc(const char *path, int pathlen);
-int map_win32_err(DWORD err);
-int map_winsock_err(void);
+#include <time.h>
+#include <windows.h>
 
 #if _MSC_VER >= 1400
 # include <sal.h>
@@ -65,9 +50,25 @@ int map_winsock_err(void);
 # endif
 #endif
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
+typedef ptrdiff_t ssize_t;
+
+#define WATCHMAN_DIR_SEP '\\'
+#define WATCHMAN_DIR_DOT '.'
+
+const char *win32_strerror(DWORD err);
+char *w_win_unc_to_utf8(WCHAR *wpath, int pathlen, uint32_t *outlen);
+WCHAR *w_utf8_to_win_unc(const char *path, int pathlen);
+int map_win32_err(DWORD err);
+int map_winsock_err(void);
+
 #define snprintf _snprintf
 int asprintf(char **out, WATCHMAN_FMT_STRING(const char *fmt), ...);
 int vasprintf(char **out, WATCHMAN_FMT_STRING(const char *fmt), va_list ap);
+char *dirname(char *path);
 
 #define STDIN_FILENO  0
 #define STDOUT_FILENO 1
@@ -78,6 +79,7 @@ char *realpath(const char *filename, char *target);
 
 #define O_DIRECTORY _O_OBTAIN_DIR
 #define O_CLOEXEC _O_NOINHERIT
+#define O_NOFOLLOW 0 /* clowny, but there's no translation */
 
 typedef DWORD pid_t;
 
@@ -85,6 +87,10 @@ typedef DWORD pid_t;
 #define HAVE_BACKTRACE_SYMBOLS
 size_t backtrace(void **frames, size_t n_frames);
 char **backtrace_symbols(void **array, size_t n_frames);
+
+#ifdef __cplusplus
+}
+#endif
 
 /* Define to 1 if you have the <inttypes.h> header file. */
 #define HAVE_INTTYPES_H 1
@@ -138,7 +144,7 @@ char **backtrace_symbols(void **array, size_t n_frames);
 #define PACKAGE_NAME "watchman"
 
 /* Define to the version of this package. */
-#define PACKAGE_VERSION "4.1.0"
+#define PACKAGE_VERSION "4.7.0"
 
 /* Version number of package */
 #define VERSION PACKAGE_VERSION
@@ -180,10 +186,4 @@ char **backtrace_symbols(void **array, size_t n_frames);
 # ifndef WORDS_BIGENDIAN
 /* #  undef WORDS_BIGENDIAN */
 # endif
-#endif
-
-/* Define to `__inline__' or `__inline' if that's what the C compiler
-   calls it, or to nothing if 'inline' is not supported under any name.  */
-#ifndef __cplusplus
-/* #undef inline */
 #endif

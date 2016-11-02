@@ -55,6 +55,8 @@ Option | Scope | Since version
 `fsevents_latency` | fallback | 3.2
 `idle_reap_age_seconds` | local | 3.7
 `hint_num_files_per_dir` | fallback | 3.9
+`hint_num_dirs` | fallback | 4.6
+`suppress_recrawl_warnings` | fallback | 4.7
 
 ### Configuration Options
 
@@ -183,11 +185,29 @@ would ignore the `build` directory at the top level of the watched tree, and
 everything below it.  It will never appear in the watchman query results for
 the tree.
 
+On Linux systems, `ignore_dirs` is respected at the OS level; the kernel
+simply will not tell watchman about changes to ignored dirs.  macOS and Windows
+have limited or no support for this, so watchman needs to process and ignore
+this class of change.
+
+For large trees or especially busy build dirs, it is recommended that you move
+the busy build dirs out of the tree for more optimal performance.
+
+
 Since version 2.9.9, if you list a dir in `ignore_dirs` that is also listed in
 `ignore_vcs`, the `ignore_dirs` placement will take precedence.  This may not
 sound like a big deal, but since `ignore_vcs` is used as a hint to for the
 placement of [cookie files](/watchman/docs/cookies.html), having these two
 options overlap in earlier versions would break watchman queries.
+
+*Since 4.6.*
+
+On macOS the first 8 items listed in `ignore_dirs` can be accelerated at the
+OS level.  This means that changes to those paths are not even communicated
+to the watchman service.  Entries beyond the first 8 are processed and
+ignored by watchman.  If your workload is prone to recrawl events you will
+want to prioritize your `ignore_dirs` list so that the most busy ignored
+locations occupy the first 8 positions in this list.
 
 ### gc_age_seconds
 
@@ -218,6 +238,30 @@ per-root basis.
 If you observe problems with `kFSEventStreamEventFlagUserDropped` increasing
 the latency parameter will allow the system to batch more change notifications
 together and operate more efficiently.
+
+### fsevents_try_resync
+
+This is macOS specific.
+
+*Since 4.6.*
+
+Defaults to `false`.  If set to `true`, if a watch receives a
+`kFSEventStreamEventFlagUserDropped` event, attempt to resync from the
+`fsevents` journal if it is available.  The journal may not be available if one
+or more volumes are mounted read-only, if the administrator has purged the
+journal, or if the `fsevents` id numbers have rolled over.
+
+This resync operation is advantageous because it effectively allows rewinding
+and replaying the event stream from a known point in time and avoids the need
+to recrawl the entire watch.
+
+If this option is set to `false`, or if the journal is not available, the
+original strategy of recrawling the watched directory tree is used instead.
+
+*Since 4.7.*
+
+The default changed to `true`.  In addition, this resync strategy is now
+also applied to `kFSEventStreamEventFlagKernelDropped` events.
 
 ### idle_reap_age_seconds
 
@@ -258,3 +302,30 @@ is 1; you would pay the cost of the collisions during the initial crawl and
 have a more optimal memory usage.  Since watchman is primarily employed as an
 accelerator, we'd recommend biasing towards using more memory and taking less
 time to run.
+
+### hint_num_dirs
+
+*Since 4.6*
+
+Used to pre-size hash tables that are used to track the total set of files
+in the entire watched tree.  The default value for this is 131072.
+
+The optimal size is a power-of-two larger than the number of directories
+in your tree; running `find . -type d | wc -l` will tell you the number
+that you have.
+
+Making this number too large is potentially wasteful of memory.  Making this
+number too small results in increased latency during crawling while the
+hash tables are rebuilt.
+
+### suppress_recrawl_warnings
+
+*Since 4.7*
+
+When set to `true`, watchman will not produce recrawl related warning fields in
+the response PDUs of various requests.  The default is `false`; the intent is
+that someone in your organization should be aware of recrawls and be able to
+manage the configuration and workload.  Some sites employ an alternative
+mechanism for sampling and reporting this to the right set of people and wish
+to disable the warning so that it doesn't appear in front of users that are
+unable to make the appropriate configuration changes for themselves.

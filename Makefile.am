@@ -11,86 +11,115 @@ JSON_LIB = -L. libwmanjson.a
 watchman_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 watchman_LDADD = $(JSON_LIB) libwildmatch.a
 watchman_SOURCES = \
-	argv.c       \
-	envp.c       \
-	spawn.c       \
-	opt.c        \
-	cfg.c        \
-	checksock.c  \
-	fstype.c     \
-	log.c        \
-	json.c       \
-	bser.c       \
-	expflags.c   \
-	hash.c       \
-	ht.c         \
-	ioprio.c        \
-	opendir.c       \
-	pending.c       \
-	stream.c        \
-	stream_stdout.c \
-	stream_unix.c   \
-	cmds/find.c     \
-	cmds/info.c     \
-	cmds/log.c      \
-	cmds/query.c    \
-	cmds/since.c    \
-	cmds/reg.c      \
-	cmds/subscribe.c    \
-	cmds/trigger.c  \
-	cmds/watch.c    \
-	cmds/debug.c    \
-	query/base.c       \
-	query/dirname.c    \
-	query/parse.c      \
-	query/eval.c       \
-	query/intcompare.c \
-	query/type.c       \
-	query/suffix.c     \
-	query/match.c      \
-	query/pcre.c       \
-	query/name.c       \
-	query/fieldlist.c  \
-	query/since.c      \
-	query/empty.c      \
-	watcher/fsevents.c \
-	watcher/helper.c   \
-	watcher/inotify.c  \
-	watcher/kqueue.c   \
-	watcher/portfs.c   \
-	listener.c   \
-	clientmode.c \
-	main.c       \
-	root.c       \
-	state.c      \
-	string.c
+	CookieSync.cpp \
+	InMemoryView.cpp \
+	QueryableView.cpp \
+	argv.cpp       \
+	envp.cpp       \
+	spawn.cpp       \
+	opt.cpp        \
+	cfg.cpp        \
+	clockspec.cpp  \
+	checksock.cpp  \
+	fstype.cpp     \
+	log.cpp        \
+	ignore.cpp     \
+	json.cpp       \
+	bser.cpp       \
+	expflags.cpp   \
+	hash.cpp       \
+	ioprio.cpp        \
+	opendir.cpp       \
+	pending.cpp       \
+	perf.cpp          \
+	stream.cpp        \
+	stream_stdout.cpp \
+	stream_unix.cpp   \
+	timedlock.cpp     \
+	cmds/find.cpp     \
+	cmds/info.cpp     \
+	cmds/log.cpp      \
+	cmds/query.cpp    \
+	cmds/since.cpp    \
+	cmds/reg.cpp      \
+	cmds/state.cpp    \
+	cmds/subscribe.cpp    \
+	cmds/trigger.cpp  \
+	cmds/watch.cpp    \
+	cmds/debug.cpp    \
+	query/base.cpp       \
+	query/dirname.cpp    \
+	query/parse.cpp      \
+	query/eval.cpp       \
+	query/glob.cpp       \
+	query/intcompare.cpp \
+	query/type.cpp       \
+	query/suffix.cpp     \
+	query/match.cpp      \
+	query/pcre.cpp       \
+	query/name.cpp       \
+	query/fieldlist.cpp  \
+	query/since.cpp      \
+	query/empty.cpp      \
+	watcher/auto.cpp     \
+	watcher/fsevents.cpp \
+	watcher/inotify.cpp  \
+	watcher/kqueue.cpp   \
+	watcher/portfs.cpp   \
+	launchd.cpp    \
+	listener.cpp   \
+	listener-user.cpp   \
+	clientmode.cpp \
+	main.cpp       \
+	root/ageout.cpp       \
+	root/crawler.cpp       \
+	root/dir.cpp       \
+	root/file.cpp       \
+	root/init.cpp       \
+	root/iothread.cpp       \
+	root/lock.cpp       \
+	root/notifythread.cpp       \
+	root/poison.cpp       \
+	root/reap.cpp       \
+	root/resolve.cpp       \
+	root/stat.cpp       \
+	root/symlink.cpp       \
+	root/sync.cpp       \
+	root/threading.cpp       \
+	root/vcs.cpp       \
+	root/warnerr.cpp       \
+	root/watchlist.cpp       \
+	state.cpp      \
+	string.cpp     \
+	time.cpp
 
 noinst_HEADERS =   \
 	watchman.h       \
 	watchman_hash.h
 
-noinst_LIBRARIES = libwmanjson.a libtap.a libwildmatch.a
+noinst_LIBRARIES = \
+	libtap.a \
+	libwildmatch.a \
+	libwmanjson.a
 
 # bundled json library
-libwmanjson_a_CPPFLAGS = $(THIRDPARTY_CPPFLAGS)
+libwmanjson_a_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 libwmanjson_a_SOURCES = \
-	thirdparty/jansson/dump.c \
-	thirdparty/jansson/error.c \
-	thirdparty/jansson/hashtable.c \
-	thirdparty/jansson/hashtable.h \
+	thirdparty/jansson/dump.cpp \
+	thirdparty/jansson/error.cpp \
 	thirdparty/jansson/jansson_private.h \
-	thirdparty/jansson/load.c \
-	thirdparty/jansson/memory.c \
-	thirdparty/jansson/pack_unpack.c \
-	thirdparty/jansson/strbuffer.c \
+	thirdparty/jansson/load.cpp \
+	thirdparty/jansson/memory.cpp \
+	thirdparty/jansson/pack_unpack.cpp \
+	thirdparty/jansson/strbuffer.cpp \
 	thirdparty/jansson/strbuffer.h \
-	thirdparty/jansson/strconv.c \
-	thirdparty/jansson/utf.c \
+	thirdparty/jansson/strconv.cpp \
+	thirdparty/jansson/utf.cpp \
 	thirdparty/jansson/utf.h \
-	thirdparty/jansson/value.c
+	thirdparty/jansson/value.cpp
 
 # bundled testing library
-libtap_a_CPPFLAGS = $(THIRDPARTY_CPPFLAGS)
+libtap_a_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 libtap_a_SOURCES = thirdparty/tap.c
 TAP_LIB = libtap.a
 
@@ -99,17 +128,16 @@ libwildmatch_a_SOURCES = thirdparty/wildmatch/wildmatch.c
 WILDMATCH_LIB = libwildmatch.a
 
 # unit tests
-TESTS = tests/argv.t tests/log.t tests/bser.t tests/wildmatch.t
-noinst_PROGRAMS = tests/argv.t tests/log.t tests/bser.t tests/wildmatch.t
-
-if HAVE_ARC
-# Run lint and output stuff suitable for feeding into ":make" in vim
-# quickfix mode.
-lint:
-	-arc lint --output compiler --lintall
-else
-lint:
-endif
+TESTS = \
+		tests/art.t \
+		tests/argv.t \
+		tests/bser.t \
+		tests/ignore.t \
+		tests/pending.t \
+		tests/string.t \
+		tests/log.t \
+		tests/wildmatch.t
+noinst_PROGRAMS = $(TESTS)
 
 export ARCHFLAGS=@ARCHFLAGS@
 if HAVE_PYTHON
@@ -124,7 +152,7 @@ py-tests:
 	$(PYTHON) $(TESTNAME)
 
 py-integration:
-	$(PYTHON) runtests.py
+	$(PYTHON) runtests.py --keep-if-fail
 
 py-clean:
 	-cd python && $(PYTHON) ./setup.py clean --all
@@ -154,7 +182,7 @@ rb-tests:
 rb-clean:
 endif
 
-all-local: py-build rb-build lint
+all-local: py-build rb-build
 
 install-exec-local: py-install
 if WATCHMAN_STATE_DIR
@@ -170,32 +198,85 @@ clean-local: py-clean rb-clean
 # generate a rule that we can use to ensure that
 # the test programs are built
 build-tests: $(TESTS)
-.PHONY: lint build-tests integration py-tests
+.PHONY: build-tests integration py-tests
 # run integration AND unit tests
-integration: all py-integration
+integration: all py-integration check
 
-tests_argv_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS)
+tests_art_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
+tests_art_t_LDADD = $(TAP_LIB)
+tests_art_t_SOURCES = \
+	tests/art_test.cpp \
+	tests/log_stub.cpp \
+	log.cpp
+
+tests_argv_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 tests_argv_t_LDADD = $(JSON_LIB) $(TAP_LIB)
 tests_argv_t_SOURCES = \
-	tests/argv.c \
-	argv.c
+	tests/argv.cpp \
+	tests/log_stub.cpp \
+	argv.cpp \
+	string.cpp \
+	hash.cpp \
+	log.cpp
 
-tests_log_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS)
+tests_ignore_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
+tests_ignore_t_LDADD = $(TAP_LIB) $(JSON_LIB)
+tests_ignore_t_SOURCES = \
+	tests/ignore_test.cpp \
+	tests/log_stub.cpp \
+	hash.cpp \
+	ignore.cpp \
+	string.cpp \
+	log.cpp
+
+tests_string_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
+tests_string_t_LDADD = $(TAP_LIB) $(JSON_LIB)
+tests_string_t_SOURCES = \
+	tests/string_test.cpp \
+	tests/log_stub.cpp \
+	hash.cpp \
+	string.cpp \
+	log.cpp
+
+tests_pending_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
+tests_pending_t_LDADD = $(TAP_LIB) $(JSON_LIB)
+tests_pending_t_SOURCES = \
+	tests/pending_test.cpp \
+	tests/log_stub.cpp \
+	hash.cpp \
+	ignore.cpp \
+	pending.cpp \
+	expflags.cpp \
+	opendir.cpp \
+	cfg.cpp \
+	time.cpp \
+	string.cpp \
+	log.cpp
+
+tests_log_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 tests_log_t_LDADD = $(JSON_LIB) $(TAP_LIB)
 tests_log_t_SOURCES = \
-	tests/log.c \
-	log.c
+	tests/log.cpp \
+	log.cpp
 
-tests_bser_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS)
+tests_bser_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 tests_bser_t_LDADD = $(JSON_LIB) $(TAP_LIB)
 tests_bser_t_SOURCES = \
-	tests/bser.c \
-	bser.c
+	tests/bser.cpp \
+	tests/log_stub.cpp \
+	bser.cpp \
+	string.cpp \
+	hash.cpp \
+	log.cpp
 
-tests_wildmatch_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS)
+tests_wildmatch_t_CPPFLAGS = $(THIRDPARTY_CPPFLAGS) @IRONMANCFLAGS@
 tests_wildmatch_t_LDADD = $(JSON_LIB) $(TAP_LIB) $(WILDMATCH_LIB)
 tests_wildmatch_t_SOURCES = \
-	tests/wildmatch_test.c
+	tests/wildmatch_test.cpp \
+	tests/log_stub.cpp \
+	string.cpp \
+	hash.cpp \
+	log.cpp
 
 watch:
 	PYTHONPATH=python python/bin/watchman-make \

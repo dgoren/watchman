@@ -141,7 +141,7 @@ class WatchmanInstance {
   function waitForLogOutput($criteria, $timeout = 5) {
     $deadline = time() + $timeout;
     while (time() < $deadline) {
-      foreach (file($this->logfile) as $line) {
+      foreach (file($this->logfile.'.log') as $line) {
         if (preg_match($criteria, $line, $matches)) {
           return array(true, $line, $matches);
         }
@@ -201,8 +201,8 @@ class WatchmanInstance {
   }
 
   function start() {
-    $cmd = "%s --foreground --sockname=%s --logfile=%s " .
-            "--statefile=%s.state --log-level=2";
+    $cmd = "%s --foreground --sockname=%s --logfile=%s.log " .
+            "--statefile=%s.state --log-level=2 --pidfile=%s.pid";
     if ($this->valgrind) {
       $cmd = "valgrind --tool=memcheck " .
         "--log-file=$this->vg_log " .
@@ -222,9 +222,18 @@ class WatchmanInstance {
 
     putenv("WATCHMAN_CONFIG_FILE=".$this->config_file);
 
-    $cmd = sprintf($cmd, $this->repo_root . '/watchman',
+    $watchman_bin = $this->repo_root . '/watchman';
+    if (!file_exists($watchman_bin)) {
+      // Probably inside a buck-built test suite.  We "know" that
+      // the test running machinery has set WATCHMAN_BINARY to the
+      // appropriate path, but if not, we just have to assume that
+      // it is in the PATH and trust that.
+      $watchman_bin = idx($_ENV, 'WATCHMAN_BINARY', 'watchman');
+    }
+
+    $cmd = sprintf($cmd, $watchman_bin,
       $this->getFullSockName(), $this->logfile,
-                    $this->logfile);
+      $this->logfile, $this->logfile);
 
     $pipes = array();
     $this->proc = proc_open($cmd, array(
@@ -649,7 +658,7 @@ class WatchmanInstance {
     }
     $this->proc = null;
     if ($this->debug) {
-      readfile($this->logfile);
+      readfile($this->logfile.'.log');
     }
     $TMP = phutil_is_windows() ? '' : '/tmp/';
     $this->appendLogFile(
@@ -739,7 +748,7 @@ function execx() {
   if ($status != 0) {
     throw new Exception("$cmd failed with status $status $output");
   }
-  return $output;
+  return array(implode("\n", $output), null);
 }
 
 // This is a helper to avoid having to spawn a new watchman
